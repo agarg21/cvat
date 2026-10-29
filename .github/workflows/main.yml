@@ -146,7 +146,8 @@ jobs:
       matrix:
         include:
           - pattern: "test_task_data"
-          - pattern: "not test_task_data"
+          - pattern: "not test_task_data and (test_tasks or test_examples or test_quality_control)"
+          - pattern: "not test_task_data and not (test_tasks or test_examples or test_quality_control)"
     name: "rest_api_testing [${{ matrix.pattern }}]"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -444,6 +445,13 @@ jobs:
   helm_rest_api_testing:
     needs: build
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pattern:
+          - "test_task_data or test_tasks or test_examples"
+          - "not (test_task_data or test_tasks or test_examples)"
+    name: "helm_rest_api_testing [${{ matrix.pattern }}]"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -528,7 +536,7 @@ jobs:
         run: |
           kubectl cp tests/mounted_file_share $(kubectl get pods -l component=server -o jsonpath='{.items[0].metadata.name}'):/home/django/share/
           kubectl exec $(kubectl get pods -l component=server -o jsonpath='{.items[0].metadata.name}') -- bash -c "mv /home/django/share/mounted_file_share/* /home/django/share/ && rm -r /home/django/share/mounted_file_share"
-          pytest --timeout 30 --platform=kube -m "not with_external_services" tests/python --log-level INFO
+          pytest --timeout 30 --platform=kube -m "not with_external_services" -k "${{ matrix.pattern }}" tests/python --log-level INFO
 
       - name: Creating a log file from "cvat" container logs
         if: failure()
@@ -546,7 +554,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: helm_rest_api_container_logs
+          name: helm_rest_api_container_logs-${{ strategy.job-index }}
           path: "${{ github.workspace }}/rest_api_testing"
 
   publish_dev_images:
